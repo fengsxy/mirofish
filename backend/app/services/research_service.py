@@ -263,7 +263,22 @@ class ResearchService:
         """Build confirmed text from selected evidence items."""
         with self._lock:
             evidence = self._evidence_store.get(task_id, [])
-        return self._build_confirmed_text(evidence, selected_ids, extra_text)
+        result = self._build_confirmed_text(evidence, selected_ids, extra_text)
+
+        # DuckDB hook: store selected evidence
+        try:
+            from .duckdb_store import DuckDBStore
+            task = self.task_manager.get_task(task_id)
+            project_id = task.metadata.get("project_id", "") if task else ""
+            if project_id:
+                selected = [e for e in evidence if e["id"] in selected_ids]
+                store = DuckDBStore()
+                store.store_evidence(project_id, selected)
+                store.close()
+        except Exception as e:
+            logger.warning(f"DuckDB evidence write failed: {e}")
+
+        return result
 
     @staticmethod
     def _build_confirmed_text(

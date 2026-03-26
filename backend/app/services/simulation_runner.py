@@ -523,6 +523,18 @@ class SimulationRunner:
                 state.runner_status = RunnerStatus.COMPLETED
                 state.completed_at = datetime.now().isoformat()
                 logger.info(f"模拟完成: {simulation_id}")
+
+                # DuckDB hook: store interactions and export to PuppyGraph
+                try:
+                    from .duckdb_store import DuckDBStore
+                    sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
+                    store = DuckDBStore()
+                    store.store_interactions(simulation_id, sim_dir)
+                    store.export_to_puppygraph(simulation_id)
+                    store.close()
+                    logger.info(f"DuckDB: stored interactions for simulation {simulation_id}")
+                except Exception as e:
+                    logger.warning(f"DuckDB interactions write failed: {e}")
             else:
                 state.runner_status = RunnerStatus.FAILED
                 # 从主日志文件读取错误信息
@@ -633,7 +645,19 @@ class SimulationRunner:
                                         state.runner_status = RunnerStatus.COMPLETED
                                         state.completed_at = datetime.now().isoformat()
                                         logger.info(f"所有平台模拟已完成: {state.simulation_id}")
-                                
+
+                                        # DuckDB hook: store interactions and export to PuppyGraph
+                                        try:
+                                            from .duckdb_store import DuckDBStore
+                                            sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
+                                            store = DuckDBStore()
+                                            store.store_interactions(simulation_id, sim_dir)
+                                            store.export_to_puppygraph(simulation_id)
+                                            store.close()
+                                            logger.info(f"DuckDB: stored interactions for simulation {simulation_id}")
+                                        except Exception as e:
+                                            logger.warning(f"DuckDB interactions write failed: {e}")
+
                                 # 更新轮次信息（从 round_end 事件）
                                 elif event_type == "round_end":
                                     round_num = action_data.get("round", 0)
