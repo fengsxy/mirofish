@@ -38,6 +38,9 @@ class Config:
     # You.com Search API（可选，用于Auto-Research）
     YOU_API_KEY = os.environ.get('YOU_API_KEY')
 
+    # PuppyGraph Data API（可选，用于图观测）
+    PUPPYGRAPH_API_URL = os.environ.get('PUPPYGRAPH_API_URL')
+
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
