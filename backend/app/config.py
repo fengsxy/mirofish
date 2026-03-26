@@ -34,7 +34,10 @@ class Config:
     
     # Zep配置
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY')
-    
+
+    # You.com Search API（可选，用于Auto-Research）
+    YOU_API_KEY = os.environ.get('YOU_API_KEY')
+
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
