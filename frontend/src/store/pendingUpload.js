@@ -20,7 +20,8 @@ export function getPendingUpload() {
   return {
     files: state.files,
     simulationRequirement: state.simulationRequirement,
-    isPending: state.isPending
+    isPending: state.isPending,
+    needsResearch: state.isPending && state.files.length === 0
   }
 }
 

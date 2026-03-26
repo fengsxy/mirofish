@@ -48,9 +48,15 @@
 
       <!-- Right Panel: Step Components -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
+        <!-- Step 1: Auto-Research (if no files uploaded) -->
+        <StepResearch
+          v-if="currentStep === 1 && needsResearch"
+          :projectData="researchProjectData"
+          @research-confirmed="onResearchConfirmed"
+        />
         <!-- Step 1: 图谱构建 -->
-        <Step1GraphBuild 
-          v-if="currentStep === 1"
+        <Step1GraphBuild
+          v-else-if="currentStep === 1"
           :currentPhase="currentPhase"
           :projectData="projectData"
           :ontologyProgress="ontologyProgress"
@@ -80,6 +86,7 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
+import StepResearch from '../components/StepResearch.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 
@@ -104,6 +111,14 @@ const currentPhase = ref(-1) // -1: Upload, 0: Ontology, 1: Build, 2: Complete
 const ontologyProgress = ref(null)
 const buildProgress = ref(null)
 const systemLogs = ref([])
+
+// Research mode
+const needsResearch = ref(false)
+
+const researchProjectData = computed(() => ({
+  simulation_requirement: getPendingUpload().simulationRequirement,
+  project_id: currentProjectId.value,
+}))
 
 // Polling timers
 let pollTimer = null
@@ -188,12 +203,18 @@ const initProject = async () => {
 
 const handleNewProject = async () => {
   const pending = getPendingUpload()
-  if (!pending.isPending || pending.files.length === 0) {
-    error.value = 'No pending files found.'
-    addLog('Error: No pending files found for new project.')
+  if (!pending.isPending) {
+    error.value = 'No pending data found.'
+    addLog('Error: No pending data found for new project.')
     return
   }
-  
+  // If no files uploaded, enter research mode
+  if (pending.needsResearch) {
+    needsResearch.value = true
+    addLog('No files uploaded — entering auto-research mode.')
+    return
+  }
+
   try {
     loading.value = true
     currentPhase.value = 0
@@ -221,6 +242,39 @@ const handleNewProject = async () => {
   } catch (err) {
     error.value = err.message
     addLog(`Exception in handleNewProject: ${err.message}`)
+  } finally {
+    loading.value = false
+  }
+}
+
+const onResearchConfirmed = async (data) => {
+  needsResearch.value = false
+  addLog(`证据确认完成，共 ${data.metadata.source_count} 条来源`)
+  try {
+    loading.value = true
+    currentPhase.value = 0
+    ontologyProgress.value = { message: 'Generating ontology from research evidence...' }
+    addLog('Starting ontology generation from research evidence...')
+    const formData = new FormData()
+    const blob = new Blob([data.text], { type: 'text/plain' })
+    formData.append('files', blob, 'research_evidence.txt')
+    formData.append('simulation_requirement', getPendingUpload().simulationRequirement)
+    const res = await generateOntology(formData)
+    if (res.success) {
+      clearPendingUpload()
+      currentProjectId.value = res.data.project_id
+      projectData.value = res.data
+      router.replace({ name: 'Process', params: { projectId: res.data.project_id } })
+      ontologyProgress.value = null
+      addLog(`Ontology generated successfully for project ${res.data.project_id}`)
+      await startBuildGraph()
+    } else {
+      error.value = res.error || 'Ontology generation failed'
+      addLog(`Error generating ontology: ${error.value}`)
+    }
+  } catch (err) {
+    error.value = err.message
+    addLog(`Exception in onResearchConfirmed: ${err.message}`)
   } finally {
     loading.value = false
   }
